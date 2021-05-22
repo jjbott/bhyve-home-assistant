@@ -33,7 +33,7 @@ next_watering_attrs = {"friendly_name": f"{zone_name} next watering"}
 
 rain_delay_finishing_entity = f"sensor.{device_name}_rain_delay_finishing".replace(
     " ", "_"
-).replace("-", "_").lower()
+).replace("-", "_").replace("#", "_").replace("__", "_").lower()
 rain_delay_finishing_attrs = {"friendly_name": f"{device_name} rain delay finishing"}
 
 rain_delay = hass.states.get(f"switch.{device_name}_rain_delay")
