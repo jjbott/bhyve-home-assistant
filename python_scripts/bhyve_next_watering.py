@@ -21,6 +21,11 @@ if not device_name:
         )
     )
 
+if not zone_name:
+    zone_id = zone_entity_id.split('.')[1]
+    logger.warn(f"{zone_entity_id} is unnamed. Using '{zone_id}'");
+    zone_name = zone_id
+
 logger.info("updating next_watering for zone: ({}: {})".format(zone_name, zone))
 
 next_watering_entity = f"sensor.{zone_name}_next_watering".replace(" ", "_").replace("-", "_").lower()
