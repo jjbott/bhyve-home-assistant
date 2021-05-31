@@ -45,7 +45,8 @@ if zone.state == "unavailable":
     )
 else:
     delay_finishes_at = None
-    next_watering = None
+    
+    next_watering = now + datetime.timedelta(days= 366) 
 
     if rain_delay.state == "on":
         started_at = dt_util.as_timestamp(rain_delay.attributes.get("started_at"))
@@ -68,7 +69,7 @@ else:
         if program.get("is_smart_program"):
             for timestamp in program.get("watering_program", []):
                 watering_time = dt_util.parse_datetime(str(timestamp))
-                if watering_time > now and (
+                if (watering_time > now) and (watering_time < next_watering) and (
                     delay_finishes_at is None or watering_time > delay_finishes_at
                 ):
                     next_watering = watering_time
@@ -85,17 +86,85 @@ else:
                     TODO
                 ************
             """
-
-            logger.info("Checking manual program: %s", program)
-            configured_days = program.get("frequency", {}).get("days")
+            frequency = program.get("frequency", {})
             start_times = program.get("start_times")
-            if configured_days is None:
-                continue
+            type = frequency.get("type");
+            
+            if type == "interval":
+                interval = frequency.get("interval")
+                interval_start = dt_util.as_local(dt_util.parse_datetime(str(frequency.get("interval_start_time"))))
+                diff = now.date() - interval_start.date()
+                nextDate = interval_start.date() + datetime.timedelta(days= (diff.days / interval) * interval) 
+                
+                nextTime = datetime.datetime.combine(nextDate, datetime.time(0,0), interval_start.tzinfo)
+                while nextTime < now:
+                    for start_time in start_times:
+                        startTime = time.strptime(start_time, "%H:%M");
+                        nextTime = datetime.datetime.combine(nextDate, datetime.time(startTime.tm_hour, startTime.tm_min), interval_start.tzinfo)
+                        if nextTime > now:
+                            break
+                    nextDate = nextDate + datetime.timedelta(days=interval) 
+                
+                if nextTime < next_watering:
+                    next_watering = nextTime
+            if type == "days":
+                configured_days = program.get("frequency", {}).get("days")
+                if configured_days is None:
+                    continue
+                
+                today = now.date()
+                sunday = today - datetime.timedelta(days=(today.weekday() + 1))
 
-            # now_weekday = now.weekday()
-
-            # next_watering_day = (
-            #         filter(lambda day: (day > now_weekday), configured_days)
-            #     )[0]# else configured_days[0]
-
+                nextTime = datetime.datetime.combine(sunday, datetime.time(0,0), now.tzinfo)
+                while nextTime < now:
+                    for configured_day in configured_days:
+                        nextDate = sunday + datetime.timedelta(days=configured_day)
+                        for start_time in start_times:
+                            startTime = time.strptime(start_time, "%H:%M");
+                            nextTime = datetime.datetime.combine(nextDate, datetime.time(startTime.tm_hour, startTime.tm_min), now.tzinfo)
+                            if nextTime > now:
+                                break
+                        if nextTime > now:
+                            break
+                    sunday = sunday + datetime.timedelta(days=7)
+                
+                if nextTime < next_watering:
+                    next_watering = nextTime
+                    
+            if type == "odd":
+                nextDate = datetime.datetime.combine(now.date(), datetime.time(0,0), now.tzinfo)
+                nextTime = nextDate
+                while nextTime < now:
+                    while nextDate.day % 2 != 1:
+                        nextDate = nextDate + datetime.timedelta(days=1)
+                    
+                    for start_time in start_times:
+                        startTime = time.strptime(start_time, "%H:%M");
+                        nextTime = datetime.datetime.combine(nextDate, datetime.time(startTime.tm_hour, startTime.tm_min), now.tzinfo)
+                        if nextTime > now:
+                            break
+                            
+                    nextDate = nextDate + datetime.timedelta(days=1)
+                
+                if nextTime < next_watering:
+                    next_watering = nextTime
+                    
+            if type == "even":
+                nextDate = datetime.datetime.combine(now.date(), datetime.time(0,0), now.tzinfo)
+                nextTime = nextDate
+                while nextTime < now:
+                    while nextDate.day % 2 != 0:
+                        nextDate = nextDate + datetime.timedelta(days=1)
+                    
+                    for start_time in start_times:
+                        startTime = time.strptime(start_time, "%H:%M");
+                        nextTime = datetime.datetime.combine(nextDate, datetime.time(startTime.tm_hour, startTime.tm_min), now.tzinfo)
+                        if nextTime > now:
+                            break
+                            
+                    nextDate = nextDate + datetime.timedelta(days=1)
+                
+                if nextTime < next_watering:
+                    next_watering = nextTime
+                    
     hass.states.set(next_watering_entity, next_watering, next_watering_attrs)
